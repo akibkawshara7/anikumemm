@@ -1,0 +1,358 @@
+import { useEffect, useState, useRef } from "react";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import {
+  Search,
+  Home,
+  Compass,
+  Calendar,
+  Users,
+  Tv,
+  BookOpen,
+  Check,
+  User,
+  Bell,
+  LogOut,
+  Settings,
+  Bookmark,
+  LogIn,
+} from "lucide-react";
+import { Logo } from "./Logo";
+import { SearchModal, useSearchHotkey } from "./SearchModal";
+import * as Popover from "@radix-ui/react-popover";
+import { useAuth } from "../lib/auth";
+import { UserAvatar } from "./UserAvatar";
+
+type NavItem = {
+  label: string;
+  to: string;
+  icon: typeof Home;
+  disabled?: boolean;
+  exact?: boolean;
+  comingSoon?: boolean;
+};
+
+const getNav = (isManga: boolean): NavItem[] => [
+  { label: "Notifications", to: "/notification", icon: Bell },
+  { label: "Schedule", to: isManga ? "/manga/schedule" : "/anime/schedule", icon: Calendar },
+  { label: "Home", to: isManga ? "/manga" : "/anime", icon: Home, exact: true },
+  { label: "Browse", to: isManga ? "/manga/browse" : "/anime/browse", icon: Compass },
+];
+
+function useHideOnScroll() {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y < 40) setHidden(false);
+      else if (y > last + 12) setHidden(true);
+      else if (y < last - 8) setHidden(false);
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return hidden;
+}
+
+export function useAppMode() {
+  const location = useLocation();
+  const [mounted, setMounted] = useState(false);
+  const [isManga, setIsManga] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (location.pathname.startsWith("/manga")) return true;
+    if (location.pathname.startsWith("/anime")) return false;
+    return localStorage.getItem("anikume_mode") === "manga";
+  });
+
+  useEffect(() => {
+    setMounted(true);
+    if (location.pathname.startsWith("/manga")) {
+      setIsManga(true);
+      localStorage.setItem("anikume_mode", "manga");
+    } else if (location.pathname.startsWith("/anime")) {
+      setIsManga(false);
+      localStorage.setItem("anikume_mode", "anime");
+    }
+  }, [location.pathname]);
+
+  return mounted ? isManga : false;
+}
+
+function UserMenuPopover() {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const navigate = useNavigate();
+  const { user, isAuthenticated, logout, openAuthModal } = useAuth();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isAuthed = mounted && isAuthenticated && !!user;
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen} modal={false}>
+      <Popover.Trigger asChild>
+        <button
+          aria-label="Account"
+          title={isAuthed ? user.username : "Account & Settings"}
+          className="relative grid size-11 place-items-center rounded-full bg-white/5 text-foreground/80 ring-1 ring-white/10 backdrop-blur-md transition hover:bg-white/10 hover:text-foreground cursor-pointer"
+        >
+          {isAuthed ? (
+            <UserAvatar
+              avatarUrl={user.settings?.avatarUrl}
+              frameUrl={user.settings?.frameUrl}
+              username={user.username}
+              size="header"
+            />
+          ) : (
+            <User className="size-5" />
+          )}
+        </button>
+      </Popover.Trigger>
+
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="end"
+          sideOffset={10}
+          className="z-[9999] bg-black/85 ring-1 ring-white/10 backdrop-blur-xl w-[220px] rounded-2xl shadow-2xl p-1.5 animate-in fade-in zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95"
+        >
+          {isAuthed ? (
+            <>
+              {/* User Details Header */}
+              <div className="px-3 py-2 border-b border-white/10 mb-1">
+                <div className="flex items-center gap-2.5">
+                  <UserAvatar
+                    avatarUrl={user.settings?.avatarUrl}
+                    frameUrl={user.settings?.frameUrl}
+                    username={user.username}
+                    size="sm"
+                  />
+                  <div className="overflow-hidden">
+                    <p className="truncate text-xs font-bold text-white">{user.username}</p>
+                    <p className="truncate text-[10px] text-white/50">{user.email}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Menu items: Only Settings and Logout */}
+              <div className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate({ to: "/settings" });
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                >
+                  <Settings className="size-4 text-white/70" />
+                  <span>Settings</span>
+                </button>
+
+                <div className="my-1 border-t border-white/10" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    logout();
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-medium text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                >
+                  <LogOut className="size-4" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  openAuthModal("signin");
+                }}
+                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <LogIn className="size-4 text-white" />
+                <span>Login</span>
+              </button>
+            </div>
+          )}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+function ProfileSelector({ align = "up" }: { align?: "up" | "down" }) {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const isManga = useAppMode();
+
+  const Icon = isManga ? BookOpen : Tv;
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen} modal={false}>
+      <Popover.Trigger asChild>
+        <button
+          className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-white/10 hover:text-foreground transition sm:size-11 cursor-pointer"
+          aria-label="Content Type"
+          title={isManga ? "Manga (Selected)" : "Anime (Selected)"}
+        >
+          <Icon className="size-[18px] text-muted-foreground hover:text-foreground transition-colors" />
+        </button>
+      </Popover.Trigger>
+
+      <Popover.Portal>
+        <Popover.Content
+          side={align === "up" ? "top" : "bottom"}
+          align="center"
+          sideOffset={14}
+          className="z-[9999] bg-black/80 ring-1 ring-white/10 backdrop-blur-md w-[200px] rounded-2xl shadow-2xl p-1.5 animate-in fade-in zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95"
+        >
+          <div className="px-2.5 py-1.5 text-[9px] font-bold text-muted-foreground uppercase tracking-wide mb-1">
+            Content Type
+          </div>
+          <div className="space-y-0.5">
+            <div
+              className={`flex items-center justify-between rounded-xl px-2.5 py-2 cursor-pointer transition-colors mb-0.5 last:mb-0 ${!isManga ? "bg-white/10 text-[var(--brand,#df7426)]" : "text-white hover:bg-white/10"}`}
+              onClick={() => {
+                setOpen(false);
+                navigate({ to: "/anime" });
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <Tv className={!isManga ? "size-4 text-[var(--brand,#df7426)]" : "size-4"} />
+                <span className="text-xs font-semibold">Anime</span>
+              </div>
+              {!isManga && <Check className="size-3.5 text-[var(--brand,#df7426)]" />}
+            </div>
+            <div
+              className={`flex items-center justify-between rounded-xl px-2.5 py-2 cursor-pointer transition-colors mb-0.5 last:mb-0 ${isManga ? "bg-white/10 text-[var(--brand,#df7426)]" : "text-white hover:bg-white/10"}`}
+              onClick={() => {
+                setOpen(false);
+                navigate({ to: "/manga" });
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className={isManga ? "size-4 text-[var(--brand,#df7426)]" : "size-4"} />
+                <span className="text-xs font-semibold">Manga</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-medium text-amber-400/90 px-1.5 py-0.2 rounded bg-amber-400/10">
+                  Maintenance
+                </span>
+                {isManga && <Check className="size-3.5 text-[var(--brand,#df7426)]" />}
+              </div>
+            </div>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+export function Header() {
+  const [searchOpen, setSearchOpen] = useState(false);
+  useSearchHotkey(() => setSearchOpen(true));
+  const hidden = useHideOnScroll();
+
+  return (
+    <>
+      <header
+        className={
+          "fixed inset-x-0 top-0 z-50 transition-transform duration-300 will-change-transform " +
+          (hidden ? "-translate-y-full" : "translate-y-0")
+        }
+      >
+        <div className="mx-auto flex max-w-[1500px] items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6">
+          <Logo className="shrink-0" />
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+            <IconBtn label="Search" onClick={() => setSearchOpen(true)}>
+              <Search className="size-5" />
+            </IconBtn>
+            <UserMenuPopover />
+          </div>
+        </div>
+      </header>
+
+      <BottomNav />
+      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+    </>
+  );
+}
+
+function BottomNav() {
+  const isManga = useAppMode();
+  const nav = getNav(isManga);
+
+  return (
+    <nav className="fixed bottom-3 left-1/2 z-50 -translate-x-1/2 duration-300 animate-in fade-in slide-in-from-bottom-4 sm:bottom-5">
+      <div className="flex items-center gap-1 rounded-full bg-black/80 p-1.5 ring-1 ring-white/10 backdrop-blur-md sm:gap-2 sm:p-2">
+        {nav.map((n, idx) => {
+          const Icon = n.icon;
+          const cls = "grid size-10 place-items-center rounded-full transition-colors sm:size-11";
+          if (n.disabled) {
+            return (
+              <button
+                key={idx}
+                onClick={() => {
+                  if (typeof window !== "undefined" && n.comingSoon) {
+                    import("sonner").then(({ toast }) => toast(`${n.label} — coming soon`));
+                  }
+                }}
+                aria-label={n.label}
+                title={`${n.label} (coming soon)`}
+                className={cls + " text-muted-foreground/60 hover:text-foreground/80"}
+              >
+                <Icon className="size-[18px]" />
+              </button>
+            );
+          }
+          return (
+            <Link
+              key={idx}
+              to={n.to}
+              activeOptions={n.exact ? { exact: true } : undefined}
+              aria-label={n.label}
+              title={n.label}
+              className={
+                cls +
+                " text-muted-foreground hover:bg-white/10 hover:text-foreground data-[status=active]:bg-white/15 data-[status=active]:text-foreground"
+              }
+            >
+              <Icon className="size-[18px]" />
+            </Link>
+          );
+        })}
+        <ProfileSelector align="up" />
+      </div>
+    </nav>
+  );
+}
+
+function IconBtn({
+  children,
+  label,
+  onClick,
+  title,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+  title?: string;
+}) {
+  return (
+    <button
+      aria-label={label}
+      title={title ?? label}
+      onClick={onClick}
+      className="relative grid size-11 place-items-center rounded-full bg-white/5 text-foreground/80 ring-1 ring-white/10 backdrop-blur-md transition hover:bg-white/10 hover:text-foreground"
+    >
+      {children}
+    </button>
+  );
+}

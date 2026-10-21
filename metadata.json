@@ -1,0 +1,6 @@
+{
+  "name": "Anime Stream & Manga App",
+  "description": "A high-performance anime streaming and manga reading web application with AniList integration and customizable video player.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
